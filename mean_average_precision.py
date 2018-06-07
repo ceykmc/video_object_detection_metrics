@@ -18,16 +18,22 @@ def compute_tp_and_fp_on_single_image(predicts, ground_truths, iou_threshold=0.5
     :param iou_threshold:
     :return:  True Positive, False Positive and corresponding scores
     """
-    # 根据confidence从大到小依次匹配
+    m, n = predicts.shape[0], ground_truths.shape[0]
+
+    if m == 0:
+        return [], [], []
+
+    if n == 0:
+        return [0] * m, [1] * m, predicts[:, 0].tolist()
+
     predict_scores = predicts[:, 0]
     predict_boxes = predicts[:, 1:]
+    # match from highest score to lowest score
     predict_boxes = predict_boxes[np.argsort(predict_scores)[::-1]]
     predict_scores = predict_scores[np.argsort(predict_scores)[::-1]]
 
-    m, n = predicts.shape[0], ground_truths.shape[0]
-    ground_truth_matched_flag = np.zeros(shape=(m, ), dtype=np.int32)  # record if the ground truth has been matched
-    true_positive = np.zeros(shape=(n, ), dtype=np.int32)
-    false_positive = np.zeros(shape=(n, ), dtype=np.int32)
+    ground_truth_matched_flag = [0] * m  # record if the ground truth has been matched
+    true_positive, false_positive = [0] * n, [0] * n
 
     for i in range(m):
         predict_box = predict_boxes[i]
