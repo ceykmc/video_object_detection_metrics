@@ -1,11 +1,6 @@
 # -*- coding: utf-8 -*-
 
-"""
-In center position error, we evaluate the stability of the center positions of the detections along a trajectory.
-A good detector should keep the centers of its outputs stable,
-    instead of randomly jittering around the centers of the ground-truths.
-"""
-
+import math
 import statistics
 from collections import defaultdict
 import numpy as np
@@ -54,8 +49,8 @@ def single_frame_match(predicts, ground_truths, predict_score_threshold, iou_thr
     return ground_truth_matched_predict
 
 
-def compute_center_position_error(matched_record):
-    error_x, error_y = list(), list()
+def compute_scale_and_ratio_error(matched_record):
+    error_s, error_r = list(), list()
     m = len(matched_record)
     for i in range(m):
         assert len(matched_record[i]) == 2
@@ -71,15 +66,15 @@ def compute_center_position_error(matched_record):
                                   (predict[3] - predict[1]) / 2,
                                   predict[2] - predict[0],
                                   predict[3] - predict[1]]
-        e_x = (p_c_x - g_c_x) / g_w
-        e_y = (p_c_y - g_c_y) / g_h
-        error_x.append(e_x)
-        error_y.append(e_y)
-    if len(error_x) <= 1:
+        e_s = math.sqrt((p_w * p_h) / (g_w * g_h))
+        e_r = (p_w / p_h) / (g_w / g_h)
+        error_s.append(e_s)
+        error_r.append(e_r)
+    if len(error_s) <= 1:
         return 0
-    std_x = statistics.stdev(error_x)
-    std_y = statistics.stdev(error_y)
-    return std_x + std_y
+    std_s = statistics.stdev(error_s)
+    std_r = statistics.stdev(error_r)
+    return std_s + std_r
 
 
 def center_position_error(video_predicts, video_ground_truths, predict_score_threshold=0.4, iou_threshold=0.5):
@@ -119,12 +114,12 @@ def center_position_error(video_predicts, video_ground_truths, predict_score_thr
             person_id = ground_truths[j][0]
             trajectories_matched_record[person_id].append(
                 (ground_truths[j][1:], ground_truth_matched_predict[j]))
-    # step 2: compute each trajectory center position error
-    trajectories_center_position_error = dict()
+    # step 2: compute each trajectory scale and ratio error
+    trajectories_scale_and_ratio_error = dict()
     for person_id, match_record in trajectories_matched_record.items():
-        trajectories_center_position_error[person_id] = \
-            compute_center_position_error(match_record)
-    return trajectories_center_position_error
+        trajectories_scale_and_ratio_error[person_id] = \
+            compute_scale_and_ratio_error(match_record)
+    return trajectories_scale_and_ratio_error
 
 
 def main():
