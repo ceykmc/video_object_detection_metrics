@@ -1,15 +1,12 @@
 # -*- coding: utf-8 -*-
 
 """
-In fragment error, we evaluate the integrity of the detections along a trajectory.
-Particularly, the results of a stable detector should be consistent(always report
-    as a target or always not).
-It should not frequently change its status throughout the trajectory.
-
-Paper: On The Stability of Video Detection and Tracking.
-       Section 3.2.1
+In center position error, we evaluate the stability of the center positions of the detections along a trajectory.
+A good detector should keep the centers of its outputs stable,
+    instead of randomly jittering around the centers of the ground-truths.
 """
 
+import statistics
 from collections import defaultdict
 import numpy as np
 
@@ -28,21 +25,24 @@ def single_frame_match(predicts, ground_truths, predict_score_threshold, iou_thr
         any predict whose score is less than \predict_score_threshold will be ignored
     :param iou_threshold:
     :return: return a list, whose length is equal to \ground_truths,
-        each element in the list represents if the corresponding ground_truth is matched,
-        value 0 represent for unmatched, value 1 represent for matched.
+        each element in the list is the matched predict position(exclude score)
+        if there is not matched predict for some ground truths, the corresponding element is a empty list.
+        for example, something like:
+            [[x1, y1, x2, y2], [], [x1, y1, x2, y2]]
+        where the second element is an empty list, meaning the second ground truth has no matched predict
     """
     m, n = predicts.shape[0], ground_truths.shape[0]
     assert n > 0, "there must be at least one ground truth"
 
     if m == 0:  # there are no predict boxes to be matched
-        return [0] * n
+        return [[]] * n
 
     predict_scores = predicts[:, 0]
     predict_boxes = predicts[:, 1:]
     predict_boxes = predict_boxes[np.where(predict_scores >= predict_score_threshold)]
 
     predict_box_used_flag = [0] * m
-    ground_truth_matched_flag = [0] * n
+    ground_truth_matched_predict = [[]] * n
     for i in range(n):
         ground_truth = ground_truths[i][1:]  # exclude person id
         overlaps = np.array([iou(predict_box, ground_truth) for predict_box in predict_boxes])
@@ -50,22 +50,39 @@ def single_frame_match(predicts, ground_truths, predict_score_threshold, iou_thr
         max_overlap_index = np.argmax(overlaps).item()
         if max_overlap > iou_threshold and predict_box_used_flag[max_overlap_index] is 0:
             predict_box_used_flag[max_overlap_index] = 1
-            ground_truth_matched_flag[i] = 1
-    return ground_truth_matched_flag
+            ground_truth_matched_predict[i] = predict_boxes[max_overlap_index]
+    return ground_truth_matched_predict
 
 
-def compute_fragment_error(matched_record):
-    # As a special case, we define fragment error of a trajectory with length one to be 0.
-    if len(matched_record) == 1:
+def compute_center_position_error(matched_record):
+    error_x, error_y = list(), list()
+    m = len(matched_record)
+    for i in range(m):
+        assert len(matched_record[i]) == 2
+        if len(matched_record[i][1]) == 0:  # there is no matched predict
+            continue
+        ground_truth = matched_record[i][0]
+        predict = matched_record[i][1]
+        g_c_x, g_c_y, g_w, g_h = [(ground_truth[2] - ground_truth[0]) / 2,
+                                  (ground_truth[3] - ground_truth[1]) / 2,
+                                  ground_truth[2] - ground_truth[0],
+                                  ground_truth[3] - ground_truth[1]]
+        p_c_x, p_c_y, p_w, p_h = [(predict[2] - predict[0]) / 2,
+                                  (predict[3] - predict[1]) / 2,
+                                  predict[2] - predict[0],
+                                  predict[3] - predict[1]]
+        e_x = (p_c_x - g_c_x) / g_w
+        e_y = (p_c_y - g_c_y) / g_h
+        error_x.append(e_x)
+        error_y.append(e_y)
+    if len(error_x) <= 1:
         return 0
-    f_k = 0
-    for i in range(1, len(matched_record)):
-        if matched_record[i] != matched_record[i - 1]:
-            f_k += 1
-    return f_k / (len(matched_record) - 1)
+    std_x = statistics.stdev(error_x)
+    std_y = statistics.stdev(error_y)
+    return std_x + std_y
 
 
-def fragment_error(video_predicts, video_ground_truths, predict_score_threshold=0.4, iou_threshold=0.5):
+def center_position_error(video_predicts, video_ground_truths, predict_score_threshold=0.4, iou_threshold=0.5):
     """
     :param video_predicts: list
         predict result on each frame of the video, has \m elements,
@@ -82,7 +99,7 @@ def fragment_error(video_predicts, video_ground_truths, predict_score_threshold=
     :param predict_score_threshold: float
     :param iou_threshold: float
     :return: dict
-        fragment error for each trajectory
+        center position error for each trajectory
     """
     assert len(video_predicts) == len(video_ground_truths)
 
@@ -94,18 +111,20 @@ def fragment_error(video_predicts, video_ground_truths, predict_score_threshold=
             continue
         predicts = np.array(video_predicts[i])
         ground_truths = np.array(video_ground_truths[i])
-        ground_truth_matched_flag = \
+        ground_truth_matched_predict = \
             single_frame_match(predicts, ground_truths, predict_score_threshold, iou_threshold)
-        assert len(ground_truth_matched_flag) == ground_truths.shape[0]
-        n = len(ground_truth_matched_flag)
+        assert len(ground_truth_matched_predict) == ground_truths.shape[0]
+        n = len(ground_truth_matched_predict)
         for j in range(n):
             person_id = ground_truths[j][0]
-            trajectories_matched_record[person_id].append(ground_truth_matched_flag[j])
+            trajectories_matched_record[person_id].append(
+                (ground_truths[j][1:], ground_truth_matched_predict[j]))
     # step 2: compute each trajectory fragment error
-    trajectories_fragment_error = dict()
+    trajectories_center_position_error = dict()
     for person_id, match_record in trajectories_matched_record.items():
-        trajectories_fragment_error[person_id] = compute_fragment_error(match_record)
-    return trajectories_fragment_error
+        trajectories_center_position_error[person_id] = \
+            compute_center_position_error(match_record)
+    return trajectories_center_position_error
 
 
 def main():
