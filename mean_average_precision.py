@@ -33,7 +33,7 @@ def compute_tp_and_fp_on_single_image(predicts, ground_truths, iou_threshold=0.5
     predict_scores = predict_scores[np.argsort(predict_scores)[::-1]]
 
     ground_truth_matched_flag = [0] * m  # record if the ground truth has been matched
-    true_positive, false_positive = [0] * n, [0] * n
+    true_positive, false_positive = [0] * m, [0] * m
 
     for i in range(m):
         predict_box = predict_boxes[i]
@@ -51,27 +51,30 @@ def compute_tp_and_fp_on_single_image(predicts, ground_truths, iou_threshold=0.5
     return true_positive, false_positive, predict_scores
 
 
-def compute_tp_and_fp(all_predicts, all_ground_truths, iou_threshold=0.5):
+def compute_tp_and_fp(video_predicts, video_ground_truths, iou_threshold=0.5):
     """
-    :param all_predicts: list, predict result on all test images,
+    :param video_predicts: list, predict result on all test images,
         for predict result on i'th test image, it has format:
             [[score, x1, y1, x2, y2], [score, x1, y1, x2, y2], ... , [score, x1, y1, x2, y2]], total p_i elements
         where p_i corresponds to predict rectangle number on the i'th test image
         all_predicts has n elements, where n corresponds to the number of test images
-    :param all_ground_truths: list, ground truth on all test images,
+    :param video_ground_truths: list, ground truth on all test images,
         for ground truth on i'th test image, it has format:
-            [[x1, y1, x2, y2], [x1, y1, x2, y2], ... , [x1, y1, x2, y2]], total g_i elements
+            [[person_id, x1, y1, x2, y2], [person_id, x1, y1, x2, y2], ... , [person_id, x1, y1, x2, y2]],
+            total g_i elements
         where g_i corresponds to ground truth number on the i'th test image
         all_ground_truths has n elements, where n corresponds to the number of test images
     :param iou_threshold:
     :return: True Positive, False Positive and scores
     """
-    assert len(all_predicts) == len(all_ground_truths)
+    assert len(video_predicts) == len(video_ground_truths)
 
     all_tp, all_fp, all_scores = list(), list(), list()
-    for i in range(len(all_predicts)):
-        predicts = np.array(all_predicts[i])
-        ground_truths = np.array(all_ground_truths[i])
+    for i in range(len(video_predicts)):
+        predicts = np.array(video_predicts[i])
+        ground_truths = np.array(video_ground_truths[i])
+        if len(ground_truths) > 0:
+            ground_truths = ground_truths[:, 1:]  # exclude person id
         tp, fp, scores = compute_tp_and_fp_on_single_image(
             predicts, ground_truths, iou_threshold)
         all_tp.extend(tp)
@@ -120,25 +123,26 @@ def voc_ap(rec, prec, use_07_metric=False):
     return ap
 
 
-def compute_average_precision(all_predicts, all_ground_truths, iou_threshold=0.5, plot_ap=False):
+def average_precision(video_predicts, video_ground_truths, iou_threshold=0.5, plot_ap=False):
     """
-    :param all_predicts: list, predict result on all test images,
+    :param video_predicts: list, predict result on all test images,
         for predict result on i'th test image, it has format:
             [[score, x1, y1, x2, y2], [score, x1, y1, x2, y2], ... , [score, x1, y1, x2, y2]], total p_i elements
         where p_i corresponds to predict rectangle number on the i'th test image
         all_predicts has n elements, where n corresponds to the number of test images
-    :param all_ground_truths: list, ground truth on all test images,
+    :param video_ground_truths: list, ground truth on all test images,
         for ground truth on i'th test image, it has format:
-            [[x1, y1, x2, y2], [x1, y1, x2, y2], ... , [x1, y1, x2, y2]], total g_i elements
+            [[person_id, x1, y1, x2, y2], [person_id, x1, y1, x2, y2], ... , [person_id, x1, y1, x2, y2]],
+            total g_i elements
         where g_i corresponds to ground truth number on the i'th test image
         all_ground_truths has n elements, where n corresponds to the number of test images
     :param iou_threshold:
     :param plot_ap: draw average precision curves
     :return: True Positive, False Positive and scores
     """
-    tp, fp, scores = compute_tp_and_fp(all_predicts, all_ground_truths, iou_threshold)
+    tp, fp, scores = compute_tp_and_fp(video_predicts, video_ground_truths, iou_threshold)
 
-    positive_number = sum([len(e) for e in all_ground_truths])
+    positive_number = sum([len(e) for e in video_ground_truths])
     tp_cum = np.cumsum(tp)
     fp_cum = np.cumsum(fp)
     recall = tp_cum / float(positive_number)
