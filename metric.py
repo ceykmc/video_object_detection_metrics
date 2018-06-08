@@ -3,6 +3,9 @@
 import os
 
 from mean_average_precision import average_precision
+from fragment_error import fragment_error
+from center_position_error import center_position_error
+from scale_and_retio_error import scale_and_ratio_error
 
 
 def read_predict_file(file_path):
@@ -43,6 +46,12 @@ def main():
     video_predicts, video_ground_truths = read_video_predicts_and_ground_truths(folder)
     ap = average_precision(video_predicts, video_ground_truths)
     print('average precision: {:.2f}'.format(ap))
+    frag_error = fragment_error(video_predicts, video_ground_truths, predict_score_threshold=0.37)
+    print('fragment error: {}'.format(frag_error))
+    center_error = center_position_error(video_predicts, video_ground_truths)
+    print('center position error: {}'.format(center_error))
+    sr_error = scale_and_ratio_error(video_predicts, video_ground_truths)
+    print('scale and ratio error: {}'.format(sr_error))
 
 
 if __name__ == "__main__":

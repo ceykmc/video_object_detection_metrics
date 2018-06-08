@@ -77,7 +77,7 @@ def compute_scale_and_ratio_error(matched_record):
     return std_s + std_r
 
 
-def center_position_error(video_predicts, video_ground_truths, predict_score_threshold=0.4, iou_threshold=0.5):
+def scale_and_ratio_error(video_predicts, video_ground_truths, predict_score_threshold=0.4, iou_threshold=0.5):
     """
     :param video_predicts: list
         predict result on each frame of the video, has \m elements,
