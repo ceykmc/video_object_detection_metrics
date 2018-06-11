@@ -32,7 +32,7 @@ def compute_tp_and_fp_on_single_image(predicts, ground_truths, iou_threshold=0.5
     predict_boxes = predict_boxes[np.argsort(predict_scores)[::-1]]
     predict_scores = predict_scores[np.argsort(predict_scores)[::-1]]
 
-    ground_truth_matched_flag = [0] * m  # record if the ground truth has been matched
+    ground_truth_matched_flag = [0] * n  # record if the ground truth has been matched
     true_positive, false_positive = [0] * m, [0] * m
 
     for i in range(m):
