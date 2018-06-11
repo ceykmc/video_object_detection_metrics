@@ -31,15 +31,18 @@ def single_frame_match(predicts, ground_truths, predict_score_threshold, iou_thr
             [[x1, y1, x2, y2], [], [x1, y1, x2, y2]]
         where the second element is an empty list, meaning the second ground truth has no matched predict
     """
-    m, n = predicts.shape[0], ground_truths.shape[0]
+    n = ground_truths.shape[0]
     assert n > 0, "there must be at least one ground truth"
 
-    if m == 0:  # there are no predict boxes to be matched
+    if len(predicts) == 0:
         return [[]] * n
 
     predict_scores = predicts[:, 0]
     predict_boxes = predicts[:, 1:]
     predict_boxes = predict_boxes[np.where(predict_scores >= predict_score_threshold)]
+    m = predict_boxes.shape[0]
+    if m == 0:  # there are no predict boxes to be matched
+        return [[]] * n
 
     predict_box_used_flag = [0] * m
     ground_truth_matched_predict = [[]] * n

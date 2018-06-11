@@ -31,15 +31,19 @@ def single_frame_match(predicts, ground_truths, predict_score_threshold, iou_thr
         each element in the list represents if the corresponding ground_truth is matched,
         value 0 represent for unmatched, value 1 represent for matched.
     """
-    m, n = predicts.shape[0], ground_truths.shape[0]
+    n = ground_truths.shape[0]
     assert n > 0, "there must be at least one ground truth"
 
-    if m == 0:  # there are no predict boxes to be matched
+    if len(predicts) == 0:  # there are no predict boxes to be matched
         return [0] * n
 
     predict_scores = predicts[:, 0]
     predict_boxes = predicts[:, 1:]
     predict_boxes = predict_boxes[np.where(predict_scores >= predict_score_threshold)]
+
+    m = predict_boxes.shape[0]
+    if m == 0:  # there are no predict boxes to be matched
+        return [0] * n
 
     predict_box_used_flag = [0] * m
     ground_truth_matched_flag = [0] * n
